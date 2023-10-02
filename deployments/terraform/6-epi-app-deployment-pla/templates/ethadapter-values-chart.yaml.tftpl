@@ -1,0 +1,13 @@
+image:
+  pullPolicy: Always
+  repository: "${ethadapter_image_repository}"
+  tag: "${ethadapter_image_version}"
+  sha: "${ethadapter_image_version_sha}"
+
+config:
+  smartContractInfo: |-
+    ${smart_contract_info}
+
+secrets:
+  orgAccountJson: |-
+    ${org_account_json}

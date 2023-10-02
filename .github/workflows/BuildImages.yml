@@ -1,0 +1,158 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Build Images
+
+# Controls when the workflow will run
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      nodeBaseImage:
+        description: 'node alpine docker image  (e.g. node:x.y.z-alpine)'
+        required: true
+        default: 'node:18.17.1-alpine'
+        type: string
+      organizationIdentifier:
+        description: 'Organization Registry Identifier (concatenated with hubIdenfier and image name)'
+        required: true
+        default: 'public.ecr.aws/plaqa'
+        type: string
+      region:
+        description: 'Enter the region where the ECR repo is located'
+        required: true
+        default: 'us-east-1'
+        type: string
+      
+      branch:
+        description: 'Enter the cicd-automation branch'
+        required: true
+        default: 'dev-2023.2.0'
+        type: string
+      ethTag:
+        description: 'Eth Adapter Image tag version (e.g. x.y.z version style or leave blank to prevent build)'
+        default: ''
+        type: string
+      ethUpdateLatestTag:
+        description: 'Update Eth Adapter latest tag'
+        required: true
+        type: boolean
+        default: false
+      epiTag:
+        description: 'ePI tag version'
+        required: true
+        default: '1.0.0-action-test'
+        type: string
+      epiUpdateLatestTag:
+        description: 'Update ePI latest tag'
+        required: true
+        type: boolean
+        default: false
+      epiDevBuildType:
+        description: 'ePI DEV build type'
+        required: true
+        type: boolean
+        default: false
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+
+jobs:
+  # This workflow contains a single job called "build"
+  build-images:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-22.04
+    environment: production
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-22.04, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - name: Set env variables
+        run: |
+          echo "PREVENT_GITHUB_ORGANIZATION=true" >> $GITHUB_ENV
+          echo "GITHUB_ORGANIZATION=${{ github.repository_owner }}" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          path: 'pl-automation'
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Update Eth Adapter env values
+        run: |
+          cd pl-automation/buildScripts/ethadapter  
+          echo "" > values.sh
+          cat > values.sh << EOF
+          NODE_ALPINE_BASE_IMAGE='${{ github.event.inputs.nodeBaseImage }}'
+          ETH_ADAPTER_NAME='ethadapter' 
+          ETH_ADAPTER_REPO_NAME='${{ github.event.inputs.organizationIdentifier }}/ethadapter'
+          EPI_WORKSPACE='https://github.com/${{ github.repository_owner }}/epi-workspace'
+          VERSION='${{ github.event.inputs.ethTag }}' 
+          if [[ '${{ github.event.inputs.epiDevBuildType }}'=='true' ]]; then
+            BUILD_TYPE='dev'
+          fi
+          EOF
+
+      - name: 'Configure AWS Credentials Action For GitHub Actions'
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: ${{vars.AWS_IAM_ROLE_ARN_TO_ASSUME}}
+          aws-region: ${{github.event.inputs.region}}
+
+      - name: Login to Amazon ECR Public
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          mask-password: 'true'
+          registry-type: public
+          
+      - name: Run eth adapter build script
+        if: ${{github.event.inputs.ethTag != ''}}
+        run: |
+          cd pl-automation/images/ethadapter
+          ./build.sh
+
+      - name: Tag eth adapter image
+        if: ${{github.event.inputs.ethTag != ''}}
+        run: |
+          cd pl-automation/images/ethadapter
+          ./tag.sh
+
+      - name: Publishing the images
+        if: ${{github.event.inputs.ethTag != ''}}
+        run: docker push ${{ github.event.inputs.organizationIdentifier }}/ethadapter:${{ github.event.inputs.ethTag }}
+
+      - name: Update ePI env values
+        run: |
+          cd pl-automation/buildScripts/epi  
+          echo "" > values.sh
+          cat > values.sh << EOF
+          NODE_ALPINE_BASE_IMAGE='${{ github.event.inputs.nodeBaseImage }}' 
+          BUILDER_NAME='epi-builder'
+          BUILDER_REPO_NAME='${{ github.event.inputs.organizationIdentifier }}/epi-builder'
+          RUNNER_NAME='epi-runner'
+          RUNNER_REPO_NAME='${{ github.event.inputs.organizationIdentifier }}/epi-runner'
+          EPI_WORKSPACE='https://github.com/${{ github.repository_owner }}/epi-workspace'
+          VERSION='${{ github.event.inputs.epiTag }}'
+          if [[ '${{ github.event.inputs.epiDevBuildType }}'=='true' ]]; then
+            BUILD_TYPE='dev'
+          fi
+          EOF
+
+      - name: Run ePI build script
+        run: |
+          cd pl-automation/buildScripts/epi
+          ./build.sh
+
+      - name: Tag ePI images
+        run: |
+          cd pl-automation/buildScripts/epi
+          ./tag.sh
+
+      - name: Publishing the images
+        run: |
+          docker push ${{ github.event.inputs.organizationIdentifier }}/epi-runner:${{ github.event.inputs.epiTag }}
+          docker push ${{ github.event.inputs.organizationIdentifier }}/epi-builder:${{ github.event.inputs.epiTag }}

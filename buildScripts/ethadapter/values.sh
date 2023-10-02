@@ -1,0 +1,7 @@
+NODE_ALPINE_BASE_IMAGE='node:18.15.0-alpine'
+NODE_BASE_IMAGE='node:18.17.0'
+HUB_IDENTIFIER='docker.io'
+ETH_ADAPTER_NAME='ethadapter'
+EPI_WORKSPACE='http://github.com/pharmaledgerassoc/epi-workspace'
+ETH_ADAPTER_REPO_NAME='pharmaledger/ethadapter'
+VERSION='1.0.5'

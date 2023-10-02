@@ -1,0 +1,8 @@
+# --- 4-quorum-node-pla/terraform.auto.tfvars.example ---
+
+kube_config_path = "~/.kube/config"
+
+network_name = "drajcan"
+cluster_name = "mah1"
+
+helm_chart_version = "0.6.4"

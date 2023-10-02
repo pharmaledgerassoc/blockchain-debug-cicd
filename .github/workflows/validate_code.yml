@@ -1,0 +1,48 @@
+name: Validate code
+on: [push, workflow_dispatch]
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # 3.3.0
+        name: Checkout
+
+      - uses: hashicorp/setup-terraform@633666f66e0061ca3b725c73b2ec20cd13a8fdd1 # v2.0.3
+        name: Configure Terraform
+        with:
+          terraform_version: 1.5.7
+
+      # https://github.com/marketplace/actions/engineerd-configurator
+      - uses: engineerd/configurator@479197cb150e720c848c8dfbe12da101471258e3 # v0.0.8
+        name: Setup terraform-docs
+        with:
+          name: terraform-docs
+          url: https://github.com/terraform-docs/terraform-docs/releases/download/v0.16.0/terraform-docs-v0.16.0-linux-amd64.tar.gz
+          pathInArchive: terraform-docs
+      - run: terraform-docs --version
+
+      - uses: engineerd/configurator@479197cb150e720c848c8dfbe12da101471258e3 # v0.0.8
+        name: Setup tflint
+        with:
+          name: tflint
+          url: https://github.com/terraform-linters/tflint/releases/download/v0.42.2/tflint_linux_amd64.zip
+          pathInArchive: tflint
+      - run: tflint --version
+      - run: tflint --init
+
+      - uses: pre-commit/action@646c83fcd040023954eafda54b4db0192ce70507 # v3.0.0
+        name: Run pre-commit
+
+  checkov:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # 3.3.0
+        name: Checkout
+
+      - uses: bridgecrewio/checkov-action@200d87cb780d9a2cf0e073ba5cf8a943babf8d8e # https://github.com/bridgecrewio/checkov-action/releases/tag/v12.23295.0
+        name: Run Checkov action
+        with:
+          framework: terraform
+          skip_path: deployments/terraform/7-lpwa-app-deployment-pla/locals.tf

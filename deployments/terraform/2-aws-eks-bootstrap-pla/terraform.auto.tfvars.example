@@ -1,0 +1,8 @@
+# --- 2-aws-eks-bootstrap-pla/terraform.auto.tfvars.example ---
+
+aws_region = "eu-west-1"
+
+network_name = "dev"
+cluster_name = "mah1"
+
+kube_config_path = "~/.kube/config"

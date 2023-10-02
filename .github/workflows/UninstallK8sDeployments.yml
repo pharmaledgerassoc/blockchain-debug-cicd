@@ -1,0 +1,67 @@
+name: 'Uninstall k8s deployments'
+
+on:
+  workflow_dispatch:
+    inputs:
+      networkName:
+        description: 'Enter the network name'
+        required: true
+        type: string
+      clusterAlias:
+        description: 'Enter the name of your cluster'
+        required: true
+        type: string
+      deployments:
+        description: 'Enter the helm releases you want to uninstall'
+        required: true
+        type: string
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+jobs:
+  uninstallK8sDeployments:
+    name: 'Uninstall k8s deployments'
+    runs-on: ubuntu-latest
+    environment: production
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Set env variables
+        run: |
+          echo "REGION_FILE_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/region" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.TOKEN }}
+
+      - name: Read region
+        run: |
+          echo "REGION=$(cat $REGION_FILE_PATH)" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials Action For GitHub Actions
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.AWS_GH_ACTIONS_ROLE }}
+          aws-region: ${{env.REGION}}
+      - name: Connect to cluster
+        run: |
+            aws eks --region ${{env.REGION}} update-kubeconfig --name ${{ github.event.inputs.clusterAlias }}
+            
+      - name: Install kubectl 
+        uses: azure/setup-kubectl@v3
+        
+      - name: Run kubectl
+        run: |
+          kubectl get pods
+            
+      - name: Install helm
+        uses: azure/setup-helm@v3
+        with:
+           version: '3.7.0' 
+
+      - name: Uninstall deployments
+        run: |
+          helm uninstall --wait --timeout=300s ${{github.event.inputs.deployments}}

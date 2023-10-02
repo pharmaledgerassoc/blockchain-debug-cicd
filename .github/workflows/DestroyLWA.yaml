@@ -1,0 +1,156 @@
+name: 'Destroy LWA'
+
+on:
+  workflow_dispatch:
+    inputs:
+      networkName:
+        description: 'Enter the network name'
+        required: true
+        type: string
+      dnsDomain:
+        description: 'Enter the LWA DNS domain'
+        required: true
+        type: string
+      region:
+        description: 'Enter the region'
+        required: true
+        type: string
+      hostname:
+        description: '(Optional) Enter the LWA hostname'
+        required: false
+        type: string
+      
+env:
+  CICD_DEPLOYMENT_NAME: "7-lwa-app-deployment-pla"
+
+  GIT_USERNAME: ${{ vars.GIT_USERNAME }}
+  GIT_EMAIL: ${{ vars.GIT_EMAIL }}
+
+  CICD_DEPLOYMENT_TOKEN: ${{ secrets.CICD_DEPLOYMENT_TOKEN }}
+ 
+  CICD_AUTOMATION_REPO: ${{ vars.CICD_AUTOMATION_REPO }}
+  CICD_AUTOMATION_BRANCH: ${{ vars.CICD_AUTOMATION_BRANCH }}
+  
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  AWS_REGION: ${{ github.event.inputs.region }}
+  AWS_IAM_ROLE_ARN_TO_ASSUME: ${{ vars.AWS_IAM_ROLE_ARN_TO_ASSUME }}
+
+  NETWORK_NAME: ${{ github.event.inputs.networkName }}
+
+  LWA_HOSTNAME: ${{ github.event.inputs.hostname }}
+  LWA_DNS_DOMAIN: ${{ github.event.inputs.dnsDomain }}
+  LWA_REPO: ${{ vars.LWA_REPO }}
+  LWA_BRANCH: ${{ vars.LWA_BRANCH }}
+  LWA_APP_BUILD_VERSION: ${{ github.event.inputs.appBuildVersion }}
+  LWA_BDNS_JSON_URL: ${{ vars.LWA_BDNS_JSON_URL }}
+  LWA_TIME_PER_CALL: ${{ vars.LWA_TIME_PER_CALL }}
+  LWA_TOTAL_WAIT_TIME: ${{ vars.LWA_TOTAL_WAIT_TIME }}
+  LWA_GTO_TIME_PER_CALL: ${{ vars.LWA_GTO_TIME_PER_CALL }}
+  LWA_GTO_TOTAL_WAIT_TIME: ${{ vars.LWA_GTO_TOTAL_WAIT_TIME }}
+
+  LWA_PREVENT_GITHUB_ORGANIZATION: ${{ vars.LWA_PREVENT_GITHUB_ORGANIZATION }}
+  LWA_GITHUB_ORGANIZATION: ${{ vars.LWA_GITHUB_ORGANIZATION }}
+
+  EPI_DOMAIN: ${{ github.event.inputs.epiDomain }}
+  
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+jobs:
+  DestroyLWA:
+    name: 'Destroy LWA'
+    runs-on: ubuntu-22.04 # version: 20230911.1.0
+    environment: production
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v3.3.0
+        with:
+          token: ${{ env.CICD_DEPLOYMENT_TOKEN }}
+
+      - uses: actions/checkout@v3.3.0
+        with:
+          token: ${{ env.CICD_DEPLOYMENT_TOKEN }}
+          repository: ${{ env.CICD_AUTOMATION_REPO }}
+          path: "./automation"
+          ref: ${{ env.CICD_AUTOMATION_BRANCH }}
+      
+      - uses: actions/checkout@v3.3.0
+        with:
+          token: ${{ env.CICD_DEPLOYMENT_TOKEN }}
+          repository: ${{ env.LWA_REPO }}
+          path: "./LWA"
+          ref: ${{ env.LWA_BRANCH }}
+      
+      - name: 'Configure AWS Credentials Action For GitHub Actions'
+        uses: aws-actions/configure-aws-credentials@v3.0.2
+        with:
+          role-to-assume: ${{ env.AWS_IAM_ROLE_ARN_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 'NPM Install'
+        uses: actions/setup-node@v3.6.0
+        with:
+          node-version: 18
+
+      - name: 'LWA Install'
+        run: |
+          export PREVENT_GITHUB_ORGANIZATION=${{ env.LWA_PREVENT_GITHUB_ORGANIZATION }}
+          export GITHUB_ORGANIZATION=${{ env.LWA_GITHUB_ORGANIZATION }}
+
+          cd ./LWA
+
+          npm install
+
+      - name: 'Terraform Install'
+        uses: hashicorp/setup-terraform@v2.0.3
+        with:
+          terraform_version: 1.5.7
+          
+      - name: 'Terraform Destroy'
+        run: |
+          mv ./automation/deployments/terraform/${{ env.CICD_DEPLOYMENT_NAME }} .
+          mv ./LWA ./${{ env.CICD_DEPLOYMENT_NAME }}/
+                    
+          rm -rf ./automation
+
+          cd ./${{ env.CICD_DEPLOYMENT_NAME }}
+
+          /bin/bash terraform.sh destroy \
+            "${{ env.AWS_ACCOUNT_ID }}" \
+            "${{ env.AWS_REGION }}" \
+            "${{ env.NETWORK_NAME }}" \
+            "${{ env.CICD_DEPLOYMENT_TOKEN }}" \
+            "${{ env.GIT_USERNAME }}" \
+            "${{ env.GIT_EMAIL }}" \
+            "${{ env.LWA_DNS_DOMAIN }}" \
+            "${{ env.EPI_DOMAIN}}" \
+            "${{ env.LWA_APP_BUILD_VERSION }}" \
+            "${{ env.LWA_BDNS_JSON_URL }}" \
+            "${{ env.LWA_HOSTNAME }}" \
+            "${{ env.LWA_TIME_PER_CALL }}" \
+            "${{ env.LWA_TOTAL_WAIT_TIME }}" \
+            "${{ env.LWA_GTO_TIME_PER_CALL }}" \
+            "${{ env.LWA_GTO_TOTAL_WAIT_TIME }}"
+        
+      - name: 'Git Commit & Push'
+        run: |
+          rm -rf ./${{ env.CICD_DEPLOYMENT_NAME }}
+
+          FQDN="${{ env.LWA_HOSTNAME }}.${{ env.LWA_DNS_DOMAIN }}"
+
+          if [[ "${{ env.LWA_HOSTNAME }}" == "" ]];
+          then
+            FQDN="${{ env.LWA_DNS_DOMAIN }}"
+          fi
+
+          rm -rf ./private/${{ env.NETWORK_NAME }}/LWA/${FQDN}
+
+          git add -A
+          git commit -m "Managed by Terraform - ./private/${{ env.NETWORK_NAME }}/LWA/${FQDN}/terraform"
+
+          git pull && git push

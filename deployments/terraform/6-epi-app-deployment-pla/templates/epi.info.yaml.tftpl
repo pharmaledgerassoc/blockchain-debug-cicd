@@ -1,0 +1,72 @@
+runner:
+  image:
+    pullPolicy: Always
+    repository: "${epi_runner_image_repository}"
+    tag: "${epi_runner_image_version}"
+    sha: "${epi_runner_image_version_sha}"
+
+builder:
+  image:
+    pullPolicy: Always
+    repository: "${epi_builder_image_repository}"
+    tag: "${epi_builder_image_version}"
+    sha: "${epi_builder_image_version_sha}"
+
+config:
+  domain: "${domain}"
+  subDomain: "${sub_domain}"
+  vaultDomain: "${vault_domain}"
+  ethadapterUrl: "${ethadapter_url}"
+  companyName: "${company_name}"
+  demiurgeMode: "sso-direct"
+  dsuFabricMode: "sso-direct"
+  buildSecretKey: "${build_secret_key}"
+  epiVersion: "${epi_runner_image_version}"
+
+  overrides:
+    demiurgeEnvironmentJs: ""
+    dsuExplorerEnvironmentJs: ""
+    dsuFabricEnvironmentJs: ""
+    leafletEnvironmentJs: ""
+    lpwaEnvironmentJs: ""
+    domainConfigJson:  ""
+    subDomainConfigJson: ""
+    vaultDomainConfigJson: ""
+    
+    bdnsHosts: |-
+      {
+        "${domain}": {
+          "brickStorages": [
+            "$ORIGIN"
+          ],
+          "anchoringServices": [
+            "$ORIGIN"
+          ],
+          "notifications": [
+            "$ORIGIN"
+          ]
+        },
+        "${sub_domain}": {
+          "brickStorages": [
+            "$ORIGIN"
+          ],
+          "anchoringServices": [
+            "$ORIGIN"
+          ],
+          "notifications": [
+            "$ORIGIN"
+          ]
+        },
+        "${vault_domain}": {
+          "replicas": [],
+          "brickStorages": [
+            "$ORIGIN"
+          ],
+          "anchoringServices": [
+            "$ORIGIN"
+          ],
+          "notifications": [
+            "$ORIGIN"
+          ]
+        }
+      }

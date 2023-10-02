@@ -1,0 +1,21 @@
+ingress:
+  enabled: true
+  className: alb
+  hosts:
+    - host: "${dns_name}"
+      paths:
+        - path: /*
+          pathType: ImplementationSpecific
+  annotations:
+    alb.ingress.kubernetes.io/load-balancer-name: ${load_balancer_name}
+    alb.ingress.kubernetes.io/group.name: default
+    alb.ingress.kubernetes.io/healthcheck-path: /ready-probe
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/ssl-policy: "ELBSecurityPolicy-FS-1-2-Res-2020-10"
+    alb.ingress.kubernetes.io/backend-protocol-version: "HTTP1"
+    alb.ingress.kubernetes.io/certificate-arn: "${certificate_arn}"

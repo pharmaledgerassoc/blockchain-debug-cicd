@@ -1,0 +1,6 @@
+# --- 3-initialize-environment-pla/terraform.auto.tfvars.example ---
+
+network_name = "phml"
+cluster_name = "mah1"
+
+helm_chart_version = "0.6.4"

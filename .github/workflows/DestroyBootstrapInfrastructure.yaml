@@ -1,0 +1,117 @@
+name: 'Destroy Bootstrap Infrastructure'
+
+on:
+  workflow_dispatch:
+    inputs:
+      networkName:
+        description: 'Enter the network name'
+        required: true
+        type: string
+      clusterName:
+        description: 'Enter the name of your cluster'
+        required: true
+        type: string
+
+env:
+  CICD_DEPLOYMENT_NAME: "2-aws-eks-bootstrap-pla"
+
+  GIT_USERNAME: ${{ vars.GIT_USERNAME }}
+  GIT_EMAIL: ${{ vars.GIT_EMAIL }}
+
+  CICD_DEPLOYMENT_TOKEN: ${{ secrets.CICD_DEPLOYMENT_TOKEN }}
+  CICD_AUTOMATION_REPO: ${{ vars.CICD_AUTOMATION_REPO }}
+  CICD_AUTOMATION_BRANCH: ${{ vars.CICD_AUTOMATION_BRANCH }}
+
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  AWS_IAM_ROLE_ARN_TO_ASSUME: ${{ vars.AWS_IAM_ROLE_ARN_TO_ASSUME }}
+
+  NETWORK_NAME: ${{ github.event.inputs.networkName }}
+  CLUSTER_NAME: ${{ github.event.inputs.clusterName }}
+
+  VPC_CNI_VERSION: ${{ vars.VPC_CNI_VERSION }}
+  KUBE_PROXY_VERSION: ${{ vars.KUBE_PROXY_VERSION }}
+  COREDNS_VERSION: ${{ vars.COREDNS_VERSION }}
+  FLUENT_BIT_HELM_CHART_VERSION: ${{ vars.FLUENT_BIT_HELM_CHART_VERSION }}
+  FLUENT_BIT_IMAGE_VERSION: ${{ vars.FLUENT_BIT_IMAGE_VERSION }}
+  AWS_LOAD_BALANCER_HELM_CHART_VERSION: ${{ vars.AWS_LOAD_BALANCER_HELM_CHART_VERSION }}
+  AWS_LOAD_BALANCER_IMAGE_VERSION: ${{ vars.AWS_LOAD_BALANCER_IMAGE_VERSION }}
+  AWS_CSI_SECRETS_STORE_PROVIDER_HELM_CHART_VERSION: ${{ vars.AWS_CSI_SECRETS_STORE_PROVIDER_HELM_CHART_VERSION }}
+  AWS_CSI_SECRETS_STORE_PROVIDER_IMAGE_VERSION: ${{ vars.AWS_CSI_SECRETS_STORE_PROVIDER_IMAGE_VERSION }}
+  EBS_CSI_DRIVER_VERSION: ${{ vars.EBS_CSI_DRIVER_VERSION }}
+  CSI_EXTERNAL_SNAPSHOTTER_IMAGE_VERSION: ${{ vars.CSI_EXTERNAL_SNAPSHOTTER_IMAGE_VERSION }}
+  SNAPSCHEDULER_HELM_CHART_VERSION: ${{ vars.SNAPSCHEDULER_HELM_CHART_VERSION }}
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+jobs:
+  DestroyBootstrapInfrastructure:
+    name: 'Destroy Bootstrap Infrastructure'
+    runs-on: ubuntu-22.04 # version: 20230305.1, sha256:2adf22367284330af9f832ffefb717c78239f6251d9d0f58de50b86229ed1427
+    environment: production
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v3.3.0
+        with:
+          token: ${{ env.CICD_DEPLOYMENT_TOKEN }}
+
+      - uses: actions/checkout@v3.3.0
+        with:
+          token: ${{ env.CICD_DEPLOYMENT_TOKEN }}
+          repository: ${{ env.CICD_AUTOMATION_REPO }}
+          path: "./automation"
+          ref: ${{ env.CICD_AUTOMATION_BRANCH }}
+      
+      - name: Set env AWS_REGION
+        run: echo "AWS_REGION=$(cat ./private/${{ env.NETWORK_NAME }}/${{ env.CLUSTER_NAME }}/region)" >> $GITHUB_ENV
+
+      - name: 'Configure AWS Credentials Action For GitHub Actions'
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ env.AWS_IAM_ROLE_ARN_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 'Terraform Install'
+        uses: hashicorp/setup-terraform@v2.0.3
+        with:
+          terraform_version: 1.5.7
+          
+      - name: 'Terraform Destroy'
+        run: |
+          mv ./automation/deployments/terraform/${{ env.CICD_DEPLOYMENT_NAME }} .
+         
+          rm -rf ./automation
+
+          cd ./${{ env.CICD_DEPLOYMENT_NAME }}
+
+          /bin/bash terraform.sh destroy \
+            "${{ env.AWS_ACCOUNT_ID }}" \
+            "${{ env.NETWORK_NAME }}" \
+            "${{ env.CLUSTER_NAME }}" \
+            "${{ env.CICD_DEPLOYMENT_TOKEN }}" \
+            "${{ env.GIT_USERNAME }}" \
+            "${{ env.GIT_EMAIL }}" \
+            "${{ env.VPC_CNI_VERSION }}" \
+            "${{ env.KUBE_PROXY_VERSION }}" \
+            "${{ env.COREDNS_VERSION }}" \
+            "${{ env.FLUENT_BIT_HELM_CHART_VERSION }}" \
+            "${{ env.FLUENT_BIT_IMAGE_VERSION }}" \
+            "${{ env.AWS_LOAD_BALANCER_HELM_CHART_VERSION }}" \
+            "${{ env.AWS_LOAD_BALANCER_IMAGE_VERSION }}" \
+            "${{ env.AWS_CSI_SECRETS_STORE_PROVIDER_HELM_CHART_VERSION }}" \
+            "${{ env.AWS_CSI_SECRETS_STORE_PROVIDER_IMAGE_VERSION }}" \
+            "${{ env.EBS_CSI_DRIVER_VERSION }}" \
+            "${{ env.CSI_EXTERNAL_SNAPSHOTTER_IMAGE_VERSION }}" \
+            "${{ env.SNAPSCHEDULER_HELM_CHART_VERSION }}"
+
+      - name: 'Git Commit & Push'
+        run: |
+          git add "./private/${{ env.NETWORK_NAME }}/${{ env.CLUSTER_NAME }}"
+          git commit -m "Managed by Terraform - ./private/${{ env.NETWORK_NAME }}/${{ env.CLUSTER_NAME }}"
+
+          git pull && git push

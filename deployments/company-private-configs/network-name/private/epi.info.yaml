@@ -1,0 +1,91 @@
+runner:
+  image:
+    # -- The repository of the container image for the runner
+    repository: "pharmaledger/epi-runner"
+    # -- Image Pull Policy for the runner
+    pullPolicy: Always
+    # -- Overrides the image tag whose default is the chart appVersion.
+    # Default to v1.3.1
+    tag: "2023.0.3-rc6"  # Note to developers: If you change this version also change appVersion in Chart.yaml
+    # -- sha256 digest of the image.
+    # Do not add the prefix "@sha256:"
+    # Default to v1.3.1
+    # <!-- # pragma: allowlist secret -->
+    sha: "1921c63169433c92e430b01b73c20d763aa206ede5832b220b6e3e7c7913a725"  # pragma: allowlist secret
+
+# Builder Settings
+builder:
+  image:
+    # -- The repository of the container image for the builder.
+    repository: "pharmaledger/epi-builder"
+    # -- Image Pull Policy for the builder.
+    pullPolicy: Always
+    # -- Image tag for the builder.
+    # Default to v1.3.1
+    tag: "2023.0.3-rc6"
+    # -- sha256 digest of the image for the builder.
+    # Do not add the prefix "@sha256:"
+    # Default to v1.3.1
+    # <!-- # pragma: allowlist secret -->
+    sha: "baaa4f217275ef93e6eb8564b0254e89a90c7e015f77b48d4f2acc39ffa40eae"  # pragma: allowlist secret
+
+# Application Configuration. Will be put in ConfigMaps/Secrets
+config:
+  # -- The Domain, e.g. "epipoc"
+  domain: "demo.epi.pla"
+  # -- The Subdomain, should be domain.company, e.g. epipoc.my-company
+  subDomain: "demo.epi.pla"
+  # -- The Vault domain, should be vault.company, e.g. vault.my-company
+  vaultDomain: "demo.vault.pla"
+  # -- The Full URL of the Ethadapter including protocol and port, e.g. "https://ethadapter.my-company.com:3000"
+  ethadapterUrl: "http://ethadapter.ethadapter:3000"
+  # -- A CompanyName which is displayed on the web page.
+  companyName: "PLA"
+  # -- For SSO, set to "sso-pin"
+  demiurgeMode: "dev-secure"
+  # -- For SSO, set to "sso-direct"
+  dsuFabricMode: "dev-secure"
+  # -- Secret Pass Phrase for de/encrypting private keys for application wallets created by builder.
+  buildSecretKey: "nosecretfordevelopers"  # "nosecretfordevelopers"
+  overrides:
+    # -- Option to explitly override the env.json for APIHub instead of using the predefined template.
+    # Note 1: Usually not required to override.
+    # Note 2: If secretProviderClass.enabled=true, then this value is ignored as it is used/mounted from Secret Vault.
+    envJson: |-
+      {
+        "PSK_TMP_WORKING_DIR": "tmp",
+        "PSK_CONFIG_LOCATION": "../apihub-root/external-volume/config",
+        "DEV": false,
+        "VAULT_DOMAIN":"demo.vault.pla",
+        "BUILD_SECRET_KEY": "nosecretfordevelopers"
+      }
+
+    # -- Centrally managed and provided BDNS Hosts Config.
+    # You must set this value in a non-sandbox environment!
+    # See [templates/_configmap-bdns.tpl](templates/_configmap-bdns.tpl) for default value.
+    bdnsHosts: |-
+      {
+        "demo.epi.pla": {
+          "brickStorages": [
+            "https://demo.pla.health"
+          ],
+          "anchoringServices": [
+            "https://demo.pla.health"
+          ],
+          "notifications": [
+            "https://demo.pla.health"
+          ]
+        },
+        "demo.vault.pla": {
+          "replicas": [],
+          "brickStorages": [
+            "$ORIGIN"
+          ],
+          "anchoringServices": [
+            "$ORIGIN"
+          ],
+          "notifications": [
+            "$ORIGIN"
+          ]
+        }
+      }

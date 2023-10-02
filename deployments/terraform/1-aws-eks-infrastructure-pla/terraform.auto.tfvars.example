@@ -1,0 +1,10 @@
+# --- 1-aws-eks-infrastructure-pla/terraform.auto.tfvars.example ---
+
+aws_region = "eu-west-1"
+
+network_name = "dev"
+cluster_name = "mah1"
+
+backend_config_path = "."
+
+github_token = "<token>"

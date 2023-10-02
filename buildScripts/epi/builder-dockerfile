@@ -1,0 +1,27 @@
+ARG BASE_IMAGE=node:18.5.0-alpine
+FROM $BASE_IMAGE
+
+# Switch to prexisting user 'node'
+# https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md#non-root-user
+USER node
+WORKDIR "/ePI-workspace"
+ENV SOURCE_FOLDER_NAME="tmp/epi"
+
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/apihub-root apihub-root
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/bin bin
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/demiurge demiurge
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/dsu-fabric-ssapp dsu-fabric-ssapp
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/gtin-resolver gtin-resolver
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/opendsu-sdk opendsu-sdk
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/webcardinal webcardinal
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/node_modules node_modules
+RUN mkdir -p reporting-service/build/bundles
+RUN touch reporting-service/build/bundles/acdc.js
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/trust-loader-config trust-loader-config
+COPY --chown=1000:1000 aliasSSIPatches ./
+COPY --chown=1000:1000 $SOURCE_FOLDER_NAME/octopus.json $SOURCE_FOLDER_NAME/octopus-freeze.json $SOURCE_FOLDER_NAME/package.json $SOURCE_FOLDER_NAME/env.json $SOURCE_FOLDER_NAME/.npmrc $SOURCE_FOLDER_NAME/README.md ./
+
+RUN printf 'export ENABLE_SSO=false; npm run server & \n sleep 1m \n node ./node_modules/octopus/scripts/setEnv --file=../../../env.json "node ./bin/octopusRun.js epi-ssapps-and-wallets-build" \n node ./node_modules/octopus/scripts/setEnv --file=../../../env.json "node ./node_modules/octopus/scripts/run patch"' >> execute-build.sh
+RUN cat execute-build.sh
+
+CMD /bin/sh execute-build.sh

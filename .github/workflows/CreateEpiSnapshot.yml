@@ -1,0 +1,91 @@
+name: 'Create ePI Snapshot'
+
+on:
+  workflow_dispatch:
+    inputs:
+      networkName:
+        description: 'Enter the network name'
+        required: true
+        type: string
+      clusterAlias:
+        description: 'Enter the name of your cluster'
+        required: true
+        type: string
+      snapshotName:
+        description: "Enter the snapshot name"
+        required: true
+        type: string
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+jobs:
+  createSnapshot:
+    name: 'Create ePI Snapshot'
+    runs-on: ubuntu-latest
+    environment: production
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Set env variables
+        run: |
+          echo "SNAPSHOT_FILE_PATH=./snapshot.yaml" >> $GITHUB_ENV
+      - name: Set env variables
+        run: |
+          echo "REGION_FILE_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/region" >> $GITHUB_ENV
+      # Checkout the repository to the GitHub Actions runner
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.TOKEN }}
+
+      - name: Read region
+        run: |
+          echo "REGION=$(cat $REGION_FILE_PATH)" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials Action For GitHub Actions
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.AWS_GH_ACTIONS_ROLE }}
+          aws-region: ${{env.REGION}}
+
+      - name: Connect to cluster
+        run: |
+            aws eks --region ${{env.REGION}} update-kubeconfig --name ${{ github.event.inputs.clusterAlias }}
+            
+      - name: Install kubectl 
+        uses: azure/setup-kubectl@v3
+        
+      - name: Run kubectl
+        run: |
+          kubectl get pods
+            
+      - name: Generate snapshot manifest
+        run: |
+          echo $SNAPSHOT_FILE_PATH
+          echo "apiVersion: snapshot.storage.k8s.io/v1" >>  $SNAPSHOT_FILE_PATH
+          echo "kind: VolumeSnapshot" >>  $SNAPSHOT_FILE_PATH
+          echo "metadata:" >>  $SNAPSHOT_FILE_PATH
+          echo "name: ${{github.event.inputs.snapshotName}}" >>  $SNAPSHOT_FILE_PATH
+          sed -i 's/\(name:\)/\  \1/' $SNAPSHOT_FILE_PATH
+          echo "spec:" >>  $SNAPSHOT_FILE_PATH          
+          echo "volumeSnapshotClassName: csi-aws-retain" >>  $SNAPSHOT_FILE_PATH          
+          sed -i 's/\(volumeSnapshotClassName:\)/\  \1/' $SNAPSHOT_FILE_PATH
+          echo "source:" >>  $SNAPSHOT_FILE_PATH          
+          sed -i 's/\(source:\)/\  \1/' $SNAPSHOT_FILE_PATH
+          echo "persistentVolumeClaimName: epi" >>  $SNAPSHOT_FILE_PATH          
+          sed -i 's/\(persistentVolumeClaimName\)/\  \1/' $SNAPSHOT_FILE_PATH
+          sed -i 's/\(persistentVolumeClaimName\)/\  \1/' $SNAPSHOT_FILE_PATH
+
+      - name: List content repo
+        run: |
+          ls -la 
+
+      - name: Create ePI Snapshot
+        run: |
+          kubectl apply -f $SNAPSHOT_FILE_PATH
+
+      - name: List snapshots
+        run: |
+          kubectl get volumeSnapshot

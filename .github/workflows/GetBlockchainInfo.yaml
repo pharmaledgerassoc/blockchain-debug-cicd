@@ -1,0 +1,106 @@
+name: 'Get Blockchain Info'
+
+on:
+  workflow_dispatch:
+    inputs:
+      networkName:
+        description: 'Enter the network name'
+        required: true
+        type: string
+      clusterName:
+        description: 'Enter the name of your cluster'
+        required: true
+        type: string
+      n:
+        description: "No of loops"
+        required: true
+        type: string
+        default: "10"
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+env:
+  CICD_DEPLOYMENT_TOKEN: ${{ secrets.CICD_DEPLOYMENT_TOKEN }}
+
+  AWS_IAM_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_IAM_ROLE_ARN_TO_ASSUME }}
+
+  NETWORK_NAME: ${{ github.event.inputs.networkName }}
+  CLUSTER_NAME: ${{ github.event.inputs.clusterName }}
+
+jobs:
+  getBlockchainInfo:
+    name: 'Listing blockchain info in loop until timeout'
+    runs-on: ubuntu-latest
+    #in order to make input.timeout usable as timeout-minutes we need this strategy workaround
+    environment: production
+    
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Set env variables
+        run: |
+          echo "REGION_FILE_PATH=./private/${{ env.NETWORK_NAME }}/${{ env.CLUSTER_NAME }}/region" >> $GITHUB_ENV
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ env.CICD_DEPLOYMENT_TOKEN }}
+          
+      - name: Read region
+        run: |
+          echo "REGION=$(cat $REGION_FILE_PATH)" >> $GITHUB_ENV
+          
+      - name: Configure AWS Credentials Action For GitHub Actions
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ env.AWS_IAM_ROLE_ARN_TO_ASSUME }}
+          aws-region: ${{ env.REGION }}
+          
+      - name: Connect to cluster
+        run: |
+            aws eks --region ${{env.REGION}} update-kubeconfig --name ${{ env.NETWORK_NAME }}-${{ env.CLUSTER_NAME }}
+      - name: Install kubectl 
+        uses: azure/setup-kubectl@v3
+        
+      - name: Create the status script
+        run: |
+          cat > status.sh << EOF
+          function isSynced() {
+            if [[ "$1"=="false" ]]
+            then
+            	echo "synced"
+            else  
+            	echo "syncing..."
+            fi
+          }
+          for i in {1..${{ inputs.n }}};
+          do
+              echo "============================================="
+              quorumPodName="$(kubectl get pods --selector=app.kubernetes.io/name=quorum --no-headers -o custom-columns="POD-NAME":.metadata.name)"
+              echo Extracting info from pod: \$quorumPodName
+              NodeID=\$(kubectl exec -t \$quorumPodName -c quorum -- sh -c "./geth-helpers/geth-exec.sh 'admin.nodeInfo.id'")
+              NodeENODE=\$(kubectl exec -t \$quorumPodName -c quorum -- sh -c "./geth-helpers/geth-exec.sh 'admin.nodeInfo.enode'")
+              noOfPeers=\$(kubectl exec -t \$quorumPodName -c quorum -- sh -c "./geth-helpers/geth-exec.sh 'admin.peers.length'")              
+              numberOfBlocks=\$(kubectl exec -t \$quorumPodName -c quorum -- sh -c "./geth-helpers/geth-exec.sh 'eth.blockNumber'")
+              lastBlockHash=\$(kubectl exec -t \$quorumPodName -c quorum -- sh -c "./geth-helpers/geth-exec.sh 'eth.getBlock(eth.blockNumber).hash'")
+              nodeIsSync=\$(kubectl exec -t \$quorumPodName -c quorum -- sh -c "./geth-helpers/geth-exec.sh 'eth.syncing'")
+          
+              echo Node ID: \$NodeID
+              echo Node enode: \$NodeENODE
+              echo Node RPC details: 
+              kubectl get svc --selector=app.kubernetes.io/name=quorum              
+              echo Number of peers: \$noOfPeers              
+              echo Number of mined blocks \$numberOfBlocks
+              echo Hash of last block \$lastBlockHash
+              echo Node is \$(isSynced $nodeIsSync)
+              echo " "
+          done
+          
+          EOF
+      - name: Set permissions
+        run: chmod 755 status.sh
+        
+      - name: Retrieve information in loop
+        run: ./status.sh

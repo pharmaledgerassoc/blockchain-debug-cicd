@@ -1,0 +1,133 @@
+name: 'Customize ingress'
+
+on:
+  workflow_dispatch:
+    inputs:
+      networkName:
+        description: 'Enter the network name'
+        required: true
+        type: string
+      clusterAlias:
+        description: 'Enter the name of your cluster'
+        required: true
+        type: string
+      dnsName:
+        description: 'Enter the DNS name for your epi installation'
+        required: true
+        type: string
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+jobs:
+  customizeIngress:
+    name: 'Customize ingress'
+    runs-on: ubuntu-latest
+    environment: production
+
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Set env variables
+        run: |
+          echo "NETWORK_PATH=./private/${{ github.event.inputs.networkName }}" >> $GITHUB_ENV
+          echo "CLUSTER_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}" >> $GITHUB_ENV
+          echo "TERRAFORM_STATE_FOLDER_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/create-infrastructure" >> $GITHUB_ENV
+          echo "SECRET_FILE_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/secret.yaml" >> $GITHUB_ENV
+          echo "REGION_FILE_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/region" >> $GITHUB_ENV
+          echo "ELASTIC_IP_ALLOCATION_ID_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/elasticIPsAllocationIds" >> $GITHUB_ENV
+          echo "DNS_NAME_FILE_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/create-infrastructure/dnsName" >> $GITHUB_ENV
+          echo "INGRESS_FILE_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/epi-ingress-template.yaml" >> $GITHUB_ENV
+          echo "TERRAFORM_STATE_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/create-infrastructure/terraform.tfstate" >> $GITHUB_ENV       
+          echo "TERRAFORM_SCRIPTS_PATH=./pl-automation/deployments/terraform/aws-eks-create-infrastructure-pla/create-cluster" >> $GITHUB_ENV
+          echo "GENERATED_TERRAFORM_STATE_PATH=./pl-automation/deployments/terraform/aws-eks-create-infrastructure-pla/create-cluster/terraform.tfstate" >> $GITHUB_ENV
+      # Checkout the repository to the GitHub Actions runner
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.TOKEN }}
+
+      - name: Create cluster folder
+        run: | 
+          mkdir -p $TERRAFORM_STATE_FOLDER_PATH
+
+      - name: Read region and DNS
+        run: |
+          echo "REGION=$(cat $REGION_FILE_PATH)" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials Action For GitHub Actions
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.AWS_GH_ACTIONS_ROLE }}
+          aws-region: ${{env.REGION}}
+
+      - name: Connect to cluster
+        run: |
+          aws eks --region ${{env.REGION}} update-kubeconfig --name ${{ github.event.inputs.clusterAlias }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Create k8s manifest for tls secret
+        run: |
+          cat > $SECRET_FILE_PATH << EOF
+            apiVersion: v1
+            data:
+              tls.crt: ${{secrets.TLS_CRT}}
+              tls.key: ${{secrets.TLS_KEY}}
+            kind: Secret
+            metadata:
+              name: pla.health
+              namespace: default
+            type: kubernetes.io/tls
+          EOF
+          cat $SECRET_FILE_PATH
+
+      - name: Create tls secret
+        run: |
+          kubectl apply -f $SECRET_FILE_PATH
+          kubectl get secret pla.health
+
+      - name: Create ingress manifest
+        run: |
+          cat > $INGRESS_FILE_PATH << EOF
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            annotations:
+              nginx.ingress.kubernetes.io/client-body-buffer-size: 1m
+              nginx.ingress.kubernetes.io/configuration-snippet: |
+                add_header Access-Control-Allow-Credentials true;
+                add_header Access-Control-Allow-Headers "Content-Type, Content-Length, X-Content-Length, Access-Control-Allow-Origin, User-Agent, authorization, Authorization, x-signature, token, epiProtocolVersion, getProductData";
+              nginx.ingress.kubernetes.io/default-backend: epi
+              nginx.ingress.kubernetes.io/enable-cors: "true"
+              nginx.ingress.kubernetes.io/proxy-body-size: 8m
+              nginx.ingress.kubernetes.io/proxy-buffer-size: 8k
+              nginx.ingress.kubernetes.io/proxy-max-temp-file-size: 1024m
+              nginx.ingress.kubernetes.io/use-regex: "true"
+            name: pla-health-ingress
+            namespace: default
+          spec:
+            ingressClassName: nginx
+            rules:
+              - host: '*.pla.health'
+                http:
+                  paths:
+                    - backend:
+                        service:
+                          name: epi
+                          port:
+                            number: 80
+                      path: /
+                      pathType: Prefix
+            tls:
+              - hosts:
+                  - ${{github.event.inputs.dnsName}}
+                secretName: pla.health
+          EOF
+
+      - name: Apply ingress manifest
+        run: |
+          kubectl apply -f $INGRESS_FILE_PATH
+          kubectl get ingress pla-health-ingress

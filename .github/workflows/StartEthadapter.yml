@@ -1,0 +1,58 @@
+name: 'Start Ethadapter'
+
+on:
+  workflow_dispatch:
+    inputs:
+      networkName:
+        description: 'Enter the network name'
+        required: true
+        type: string
+      clusterAlias:
+        description: 'Enter the name of your cluster'
+        required: true
+        type: string
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+jobs:
+  startEthadapter:
+    name: 'Start Ethadapter'
+    runs-on: ubuntu-latest
+    environment: production
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Set env variables
+        run: |
+          echo "REGION_FILE_PATH=./private/${{ github.event.inputs.networkName }}/${{ github.event.inputs.clusterAlias }}/region" >> $GITHUB_ENV
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.TOKEN }}          
+
+      - name: Read region
+        run: |
+          echo "REGION=$(cat $REGION_FILE_PATH)" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials Action For GitHub Actions
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.AWS_GH_ACTIONS_ROLE }}
+          aws-region: ${{env.REGION}}
+      - name: Connect to cluster
+        run: |
+            aws eks --region ${{env.REGION}} update-kubeconfig --name ${{ github.event.inputs.clusterAlias }}
+            
+      - name: Install kubectl 
+        uses: azure/setup-kubectl@v3
+        
+      - name: Start epi pod
+        run: |
+          kubectl scale deployment ethadapter --replicas=1
+
+      - name: Get pods
+        run: |
+          kubectl get pods

@@ -81,6 +81,45 @@ module "cloudfront" {
   }
 
   default_root_object = "index.html"
+
+  custom_error_response = [
+    {
+      error_caching_min_ttl = 300
+      error_code            = 400
+      response_code         = 200
+      response_page_path    = "/4xx-errors/index.html"
+    },
+    {
+      error_caching_min_ttl = 300
+      error_code            = 403
+      response_code         = 200
+      response_page_path    = "/4xx-errors/index.html"
+    },
+    {
+      error_caching_min_ttl = 300
+      error_code            = 404
+      response_code         = 200
+      response_page_path    = "/4xx-errors/index.html"
+    },
+    {
+      error_caching_min_ttl = 300
+      error_code            = 405
+      response_code         = 200
+      response_page_path    = "/4xx-errors/index.html"
+    },
+    {
+      error_caching_min_ttl = 300
+      error_code            = 414
+      response_code         = 200
+      response_page_path    = "/4xx-errors/index.html"
+    },
+    {
+      error_caching_min_ttl = 300
+      error_code            = 416
+      response_code         = 200
+      response_page_path    = "/4xx-errors/index.html"
+    },
+  ]
 }
 
 resource "aws_route53_record" "main" {

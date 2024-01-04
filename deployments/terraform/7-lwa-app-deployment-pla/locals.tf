@@ -1,7 +1,7 @@
 # --- 7-lwa-app-deployment-pla/locals.tf ---
 
 locals {
-  https_url_environment_js_template = "https://raw.githubusercontent.com/pharmaledgerassoc/LWA/main/environment.js.template"
+  https_url_environment_js_template = "https://raw.githubusercontent.com/axiologic-pla/LWA/main/environment.js.template"
 
   fqdn = var.hostname == "" ? var.dns_domain : join(".", [var.hostname, var.dns_domain])
 

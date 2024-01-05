@@ -27,6 +27,7 @@ TIME_PER_CALL="${13}"
 TOTAL_WAIT_TIME="${14}"
 GTO_TIME_PER_CALL="${15}"
 GTO_TOTAL_WAIT_TIME="${16}"
+CSP_SRC_CONNECT="${17}"
 
 DEPLOYMENT_NAME="LWA"
 
@@ -57,6 +58,7 @@ time_per_call       = ${TIME_PER_CALL}
 total_wait_time     = ${TOTAL_WAIT_TIME}
 gto_time_per_call   = ${GTO_TIME_PER_CALL}
 gto_total_wait_time = ${GTO_TOTAL_WAIT_TIME}
+csp_src_connect = ${CSP_SRC_CONNECT}
 EOF
 
 terraform init -reconfigure \

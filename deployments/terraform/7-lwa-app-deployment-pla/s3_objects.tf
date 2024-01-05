@@ -86,6 +86,16 @@ resource "aws_s3_object" "jpg" {
   content_type = "image/jpg"
 }
 
+resource "aws_s3_object" "gif" {
+  for_each = fileset("${path.module}/LWA", "**/*.gif")
+
+  bucket       = module.s3_bucket.s3_bucket_id
+  key          = each.value
+  source       = "${path.module}/LWA/${each.value}"
+  etag         = filemd5("${path.module}/LWA/${each.value}")
+  content_type = "image/gif"
+}
+
 resource "aws_s3_object" "woff" {
   for_each = fileset("${path.module}/LWA", "**/*.woff")
 

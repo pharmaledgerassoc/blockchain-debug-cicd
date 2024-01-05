@@ -12,7 +12,7 @@ locals {
 
   csp_script_src_unsafe_hashes = "'sha256-XkPjGMp0z+c11Qt/zG8pIkC1TIiA9lf9XEXevRQbMTU='"
 
-  csp_connect_src = local.bdns_json_url_specified ? "${var.csp_src_connect} https://${local.fqdn} ${join(" ", [for url in distinct(regexall("https://[^\"/]+", data.http.bdns_json[0].response_body)) : url])}" : "https://${local.fqdn} ${join(" ", [for url in distinct(regexall("https://[^\"/]+", file(local.bdns_json_local_path))) : url])}"
+  csp_connect_src = local.bdns_json_url_specified ? "${var.bdns_json_url} https://${local.fqdn} ${join(" ", [for url in distinct(regexall("https://[^\"/]+", data.http.bdns_json[0].response_body)) : url])}" : "https://${local.fqdn} ${join(" ", [for url in distinct(regexall("https://[^\"/]+", file(local.bdns_json_local_path))) : url])}"
 
   s3_object_js   = setsubtract(fileset("${path.module}/LWA", "**/*.js"), ["environment.js"])
   s3_object_json = setsubtract(fileset("${path.module}/LWA", "**/*.json"), ["bdns.json"])

@@ -50,8 +50,3 @@ variable "hostname" {
   type    = string
   default = ""
 }
-
-variable "csp_src_connect" {
-  type = string
-  default = ""
-}

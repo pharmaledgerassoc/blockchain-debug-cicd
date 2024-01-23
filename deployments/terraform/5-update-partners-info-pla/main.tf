@@ -26,6 +26,6 @@ resource "null_resource" "qn_0" {
   }
 
   provisioner "local-exec" {
-    command = "helm upgrade --install --debug --wait --timeout=600s qn-0 pharmaledgerassoc/quorum-node -f ${local.qn_values_path} -f ${local.gh_info_path} -f ${path.module}/github.info.yaml -f ${local.qn_info_path} -f ${local.network_config_values} -f ${local.tmp_folder_path}/deployment.yaml -f ${local.tmp_folder_path}/networkName.yaml -f ${local.update_partners_info} --set-file use_case.updatePartnersInfo.plugin_data_common=${local.tmp_folder_path}/update-partners-info.plugin.json -f ${path.module}/values.yaml -f ${local.tmp_folder_path}/secretsmanager.yaml"
+    command = "helm upgrade --install --debug --wait --timeout=600s qn-0 pharmaledgerassoc/quorum-node -f ${local.qn_values_path} -f ${local.gh_info_path} -f ${path.module}/github.info.yaml -f ${local.qn_info_path} -f ${local.network_config_values} -f ${local.tmp_folder_path}/deployment.yaml -f ${local.tmp_folder_path}/networkName.yaml -f ${local.tmp_folder_path}/update-partners.info.yaml --set-file use_case.updatePartnersInfo.plugin_data_common=${local.tmp_folder_path}/update-partners-info.plugin.json -f ${path.module}/values.yaml -f ${local.tmp_folder_path}/secretsmanager.yaml"
   }
 }

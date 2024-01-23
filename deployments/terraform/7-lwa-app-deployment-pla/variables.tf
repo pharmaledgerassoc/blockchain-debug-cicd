@@ -51,14 +51,7 @@ variable "hostname" {
   default = ""
 }
 
-variable "lwa_repo" {
+variable "timestamp" {
   type    = string
   default = ""
 }
-
-variable "lwa_branch" {
-  type    = string
-  default = ""
-}
-
-

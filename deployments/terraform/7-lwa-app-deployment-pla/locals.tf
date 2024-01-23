@@ -3,7 +3,7 @@
 locals {
   timestamp = var.timestamp == "" ? formatdate("YYYYMMDDhhmmss", timestamp()) : var.timestamp
 
-  https_url_environment_js_template = "https://raw.githubusercontent.com/pharmaledgerassoc/LWA/main/environment.js.template"
+  https_url_environment_js_template = "https://raw.githubusercontent.com/axiologic-pla/LWA/LWA-2.0.2/environment.js.template"
 
   fqdn = var.hostname == "" ? var.dns_domain : join(".", [var.hostname, var.dns_domain])
 

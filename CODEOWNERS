@@ -11,8 +11,5 @@
 # In each subsection folders are ordered first by depth, then alphabetically.
 # This should make it easy to add new rules without breaking existing ones.
 
-# Quality Approvers
-   *       @axiologic-pla/test-quality-approver
-
- # Tech Leads
-   *       @axiologic-pla/test-tech-leads
+# Quality Approvers and Tech Leads
+ * @axiologic-pla/test-quality-approver @axiologic-pla/test-tech-leads
